@@ -1,20 +1,19 @@
 use aiken/builtin
 use aiken/collection/list.{any}
-use aiken/collection/pairs.{has_key}
-use aiken/crypto.{ScriptHash}
 use cardano/address.{Credential, Script}
-use cardano/assets.{PolicyId, quantity_of}
+use cardano/assets.{Lovelace, PolicyId, quantity_of}
 use cardano/transaction.{Output, OutputReference, Transaction}
 use config
-use types.{ColdCred, HotCred, Intention, ProxyAction, ProxyState, VaultSpend}
+use types.{ColdCred, HotCred, Intention, ProxyAction, VaultSpend}
 use utils.{dataify, inputs_inline_datum, must_find_item}
 
-fn check_for_proxy(tx: Transaction, script_hash: ScriptHash) -> Bool {
-  let proxy_cred = Script(script_hash)
+fn must_have_key_data(
+  withdrawals: Pairs<Credential, Lovelace>,
+  cred: Data,
+) -> Bool {
+  expect [Pair(key, _), ..rest] = withdrawals
 
-  let withdrawals = tx.withdrawals
-
-  has_key(withdrawals, proxy_cred)
+  dataify(key) == cred || must_have_key_data(rest, cred)
 }
 
 /// The bread and butter of Bullet
@@ -27,15 +26,15 @@ validator proxy {
   ) {
     expect Script(own_hash) = account
 
+    let Transaction { reference_inputs, withdrawals, .. } = tx
+
     // Get control credentials
-    expect ProxyState {
-      hot_cred_contract,
-      intention_contract,
-      vault_spend_contract,
-      cold_cred_contract,
-      cold_control_contract,
-    } =
-      tx.reference_inputs
+    expect [
+      hot_cred_contract, intention_contract, vault_spend_contract,
+      cold_cred_contract, cold_control_contract,
+      ..
+    ] =
+      reference_inputs
         |> must_find_item(
             fn(input) {
               input.output.value
@@ -44,17 +43,19 @@ validator proxy {
             },
           )
         |> inputs_inline_datum()
+        |> builtin.un_constr_data()
+        |> builtin.snd_pair()
 
     if proxy_action == dataify(HotCred) {
-      check_for_proxy(tx, hot_cred_contract)
+      must_have_key_data(withdrawals, hot_cred_contract)
     } else if proxy_action == dataify(Intention) {
-      check_for_proxy(tx, intention_contract)
+      must_have_key_data(withdrawals, intention_contract)
     } else if proxy_action == dataify(VaultSpend) {
-      check_for_proxy(tx, vault_spend_contract)
+      must_have_key_data(withdrawals, vault_spend_contract)
     } else if proxy_action == dataify(ColdCred) {
-      check_for_proxy(tx, cold_cred_contract)
+      must_have_key_data(withdrawals, cold_cred_contract)
     } else {
-      check_for_proxy(tx, cold_control_contract)
+      must_have_key_data(withdrawals, cold_control_contract)
     }
   }
 

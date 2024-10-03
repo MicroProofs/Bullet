@@ -1,4 +1,4 @@
-use aiken/crypto.{Blake2b_256, Hash, ScriptHash, VerificationKey}
+use aiken/crypto.{Blake2b_256, Hash, VerificationKey}
 use cardano/address.{Credential}
 
 pub type MessageHash =
@@ -38,11 +38,11 @@ pub type UtxoStates {
 }
 
 pub type ProxyState {
-  hot_cred_contract: ScriptHash,
-  intention_contract: ScriptHash,
-  vault_spend_contract: ScriptHash,
-  cold_cred_contract: ScriptHash,
-  cold_control_contract: ScriptHash,
+  hot_cred_contract: Credential,
+  intention_contract: Credential,
+  vault_spend_contract: Credential,
+  cold_cred_contract: Credential,
+  cold_control_contract: Credential,
 }
 
 pub type Vk {
