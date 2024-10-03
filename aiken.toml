@@ -21,7 +21,7 @@ version = "main"
 source = "github"
 
 [config.default]
-bullet_hash = ""
+bullet_hash = "totally_valid"
 one_shot_output_index = 0
-one_shot_tx_hash = ""
-proxy_hash = ""
+one_shot_tx_hash = "one_shot_one_kill"
+proxy_hash = "valid_proxy"
