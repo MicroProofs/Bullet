@@ -1,9 +1,43 @@
 use bullet
-use cardano/address.{Script, VerificationKey}
-use cardano/assets.{add, from_asset}
-use cardano/transaction.{Mint, Redeemer, Transaction, Withdraw}
+use cardano/address.{Address, Inline, Script, VerificationKey}
+use cardano/assets.{add, from_asset, zero}
+use cardano/transaction.{
+  InlineDatum, Input, Mint, NoDatum, Output, OutputReference, Redeemer,
+  Transaction, Withdraw,
+}
 use config
-use types.{Setup}
+use types.{AccountState, Setup}
+
+test can_setup_stake() {
+  let account = Script("blargh_uuuug")
+
+  let address = Address(Script("blue"), None)
+
+  let expected_address =
+    Address(Script(config.bullet_hash), Some(Inline(account)))
+
+  let expected_value = from_asset(config.bullet_hash, "blargh_uuuug", 1)
+
+  let account_state = AccountState(1, [], [], [], [])
+
+  let input =
+    Input(
+      config.new_user_tx_hash
+        |> OutputReference(config.new_user_output_index),
+      Output(address, zero, NoDatum, None),
+    )
+
+  let outputs =
+    [
+      Output(expected_address, expected_value, InlineDatum(account_state), None),
+      Output(address, zero, InlineDatum([[], []]), None),
+    ]
+
+  let tx =
+    Transaction { ..transaction.placeholder, inputs: [input], outputs: outputs }
+
+  bullet.stake_bullet.withdraw(Setup, account, tx)
+}
 
 test can_mint_bullet() {
   let name = "bleh_blah_bleh"

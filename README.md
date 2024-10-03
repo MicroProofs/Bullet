@@ -52,13 +52,10 @@ aiken check -m foo
 
 ## Documentation
 
-If you're writing a library, you might want to generate an HTML documentation for it.
+![image](./ValidatorDependency.png)
 
-Use:
-
-```sh
-aiken docs
-```
+The straight lines represent a validator parameterized by the hash of the other validator it points to.
+The dashed lines represents a validator link via a global state held by a datum or token name that is the hash of the validator being pointed to.
 
 ## Resources
 

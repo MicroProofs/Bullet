@@ -1,6 +1,6 @@
 use aiken/builtin
 use aiken/collection/dict.{to_pairs}
-use aiken/collection/list.{any, has}
+use aiken/collection/list.{any}
 use aiken/collection/pairs.{has_key}
 use aiken/crypto.{Signature, blake2b_256}
 use aiken/primitive/bytearray.{concat}
@@ -23,19 +23,25 @@ use utils.{
 // UserAccount =
 // Address(Script("BULLET"), Some(Inline(Script("TRUE_STAKE_KEY"))))
 
-fn check_for_stake_proxy(tx: Transaction, action: Redeemer) {
+fn check_for_stake_proxy(tx: Transaction, credential: Data) {
   let proxy_cred = Withdraw(Script(config.stake_proxy_hash))
 
-  has(tx.redeemers, Pair(proxy_cred, action))
+  let redeemer = must_find_key(tx.redeemers, proxy_cred)
+
+  expect [cred, ..] = builtin.un_list_data(redeemer)
+
+  cred == credential
 }
 
+/// Used as an example of how an always true 
+/// stake key does not comprimise other user accounts
 validator true_stake_bullet {
   else(_) {
     True
   }
 }
 
-/// Rely on proxy validator for all other validation besides setup
+/// Rely on proxy stake validator for all other validation besides setup
 validator stake_bullet {
   withdraw(
     stake_action: Data<StakeActions>,
