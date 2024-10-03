@@ -1,17 +1,11 @@
-use aiken/builtin
-use cardano/address.{Credential, Script}
-use cardano/assets.{quantity_of}
+use cardano/address.{Credential}
 use cardano/transaction.{Transaction}
-use config
-use types.{Control, Signed, StakeActions}
-use utils.{
-  check_tx_observed, check_valid_vk_sigs, inputs_inline_datum, must_find_item,
-}
+use types.{StakeActions}
 
 pub fn check_control_creds(
-  account: Credential,
-  stake_action: Data<StakeActions>,
-  tx: Transaction,
+  _account: Credential,
+  _stake_action: Data<StakeActions>,
+  _tx: Transaction,
 ) -> Bool {
   // expect Signed(signatures) = stake_action
 

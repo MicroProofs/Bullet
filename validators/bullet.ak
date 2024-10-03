@@ -5,14 +5,14 @@ use aiken/collection/pairs.{has_key}
 use aiken/crypto.{Signature, blake2b_256}
 use aiken/primitive/bytearray.{concat}
 use cardano/address.{Address, Credential, Inline, Script}
-use cardano/assets.{PolicyId, quantity_of, to_dict}
+use cardano/assets.{PolicyId, from_asset, to_dict, without_lovelace}
 use cardano/certificate.{Certificate}
 use cardano/governance.{Voter}
 use cardano/transaction.{
   InlineDatum, Output, OutputReference, Redeemer, Transaction, Withdraw,
 }
 use config
-use types.{Control, Setup, StakeActions, Vk}
+use types.{AccountState, Setup, StakeActions}
 use utils.{check_all_tx_observed, check_all_valid_vk_sigs, must_find_key}
 
 fn check_for_proxy(tx: Transaction) -> Bool {
@@ -62,10 +62,12 @@ validator stake_bullet {
       let expected_address =
         Address(Script(config.bullet_hash), Some(Inline(account)))
 
+      let expected_value = from_asset(config.bullet_hash, own_hash, 1)
+
       expect (hot_sigs, cold_sigs): (List<Signature>, List<Signature>) =
         sig_datum
 
-      expect Control {
+      expect AccountState {
         quorum,
         hot_cred,
         hot_cred_hash,
@@ -73,14 +75,10 @@ validator stake_bullet {
         cold_cred_hash,
       } = datum
 
-      expect cold_cred: List<Vk> = cold_cred
-
-      expect cold_cred_hash: List<Credential> = cold_cred_hash
-
       and {
         any(inputs, fn(input) { input.output_reference == one_shot_ref }),
         // Check for account state is setup correctly
-        quantity_of(value, config.bullet_hash, own_hash) == 1,
+        without_lovelace(value) == expected_value,
         address == expected_address,
         quorum > 0,
         check_all_valid_vk_sigs(hot_cred, hot_sigs, one_shot_message),
