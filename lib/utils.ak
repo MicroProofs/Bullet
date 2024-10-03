@@ -3,10 +3,10 @@ use aiken/crypto.{
   verify_schnorr_signature,
 }
 use aiken/primitive/bytearray.{is_empty}
-use cardano/address.{Credential, Script, VerificationKey}
+use cardano/address.{Address, Credential, Script, VerificationKey}
 use cardano/assets.{Lovelace}
-use cardano/transaction.{InlineDatum, Input}
-use types.{MessageHash, Schnorr, Secp, Vk}
+use cardano/transaction.{InlineDatum, Input, OutputReference}
+use types.{MessageHash, Schnorr, Secp, Vault, Vk}
 
 pub fn must_find_key(pairs: Pairs<a, b>, key: a) -> b {
   expect [Pair(k2, value), ..rest] = pairs
@@ -161,5 +161,55 @@ pub fn must_take_key_until(list: List<Pair<a, b>>, key: a) -> List<Pair<a, b>> {
     rest
   } else {
     must_take_key_until(rest, key)
+  }
+}
+
+pub fn dataify(d: Data) -> Data {
+  d
+}
+
+pub fn filter_hot_inputs(
+  self: List<Input>,
+  address: Address,
+) -> List<OutputReference> {
+  when self is {
+    [] -> []
+    [x, ..xs] -> {
+      let y = x.output
+
+      if y.address == address {
+        let datum = y.datum
+
+        if datum == InlineDatum(Vault) {
+          fail
+        } else {
+          [x.output_reference, ..filter_hot_inputs(xs, address)]
+        }
+      } else if y.address.payment_credential == address.payment_credential {
+        fail
+      } else {
+        filter_hot_inputs(xs, address)
+      }
+    }
+  }
+}
+
+pub fn filter_user_inputs(
+  self: List<Input>,
+  address: Address,
+) -> List<OutputReference> {
+  when self is {
+    [] -> []
+    [x, ..xs] -> {
+      let y = x.output
+
+      if y.address == address {
+        [x.output_reference, ..filter_user_inputs(xs, address)]
+      } else if y.address.payment_credential == address.payment_credential {
+        fail
+      } else {
+        filter_user_inputs(xs, address)
+      }
+    }
   }
 }

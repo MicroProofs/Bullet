@@ -6,10 +6,8 @@ use cardano/address.{Credential, Script}
 use cardano/assets.{PolicyId, quantity_of}
 use cardano/transaction.{Output, OutputReference, Transaction}
 use config
-use types.{
-  ColdControl, ColdCred, HotCred, Intention, ProxyAction, ProxyState, VaultSpend,
-}
-use utils.{inputs_inline_datum, must_find_item}
+use types.{ColdCred, HotCred, Intention, ProxyAction, ProxyState, VaultSpend}
+use utils.{dataify, inputs_inline_datum, must_find_item}
 
 fn check_for_proxy(tx: Transaction, script_hash: ScriptHash) -> Bool {
   let proxy_cred = Script(script_hash)
@@ -17,10 +15,6 @@ fn check_for_proxy(tx: Transaction, script_hash: ScriptHash) -> Bool {
   let withdrawals = tx.withdrawals
 
   has_key(withdrawals, proxy_cred)
-}
-
-fn dataify(d: Data) -> Data {
-  d
 }
 
 /// The bread and butter of Bullet
@@ -59,10 +53,8 @@ validator proxy {
       check_for_proxy(tx, vault_spend_contract)
     } else if proxy_action == dataify(ColdCred) {
       check_for_proxy(tx, cold_cred_contract)
-    } else if proxy_action == dataify(ColdControl) {
-      check_for_proxy(tx, cold_control_contract)
     } else {
-      False
+      check_for_proxy(tx, cold_control_contract)
     }
   }
 

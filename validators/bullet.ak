@@ -1,6 +1,6 @@
 use aiken/builtin
 use aiken/collection/dict.{to_pairs}
-use aiken/collection/list.{any}
+use aiken/collection/list.{any, has}
 use aiken/collection/pairs.{has_key}
 use aiken/crypto.{Signature, blake2b_256}
 use aiken/primitive/bytearray.{concat}
@@ -13,14 +13,26 @@ use cardano/transaction.{
 }
 use config
 use types.{AccountState, Setup, StakeActions}
-use utils.{check_all_tx_observed, check_all_valid_vk_sigs, must_find_key}
+use utils.{
+  check_all_tx_observed, check_all_valid_vk_sigs, dataify, must_find_key,
+}
 
-fn check_for_proxy(tx: Transaction) -> Bool {
-  let proxy_cred = Script(config.proxy_hash)
+// UserAccount =
+// Address(Script("BULLET"), Some(Inline(Script("USER_SPECIFIC"))))
 
-  let withdrawals = tx.withdrawals
+// UserAccount =
+// Address(Script("BULLET"), Some(Inline(Script("TRUE_STAKE_KEY"))))
 
-  has_key(withdrawals, proxy_cred)
+fn check_for_stake_proxy(tx: Transaction, action: Redeemer) {
+  let proxy_cred = Withdraw(Script(config.stake_proxy_hash))
+
+  has(tx.redeemers, Pair(proxy_cred, action))
+}
+
+validator true_stake_bullet {
+  else(_) {
+    True
+  }
 }
 
 /// Rely on proxy validator for all other validation besides setup
@@ -30,9 +42,7 @@ validator stake_bullet {
     account: Credential,
     tx: Transaction,
   ) {
-    let setup: Data = Setup
-
-    if stake_action == setup {
+    if stake_action == dataify(Setup) {
       let Transaction { inputs, outputs, withdrawals, extra_signatories, .. } =
         tx
 
@@ -87,28 +97,77 @@ validator stake_bullet {
         check_all_tx_observed(cold_cred_hash, extra_signatories, withdrawals),
       }
     } else {
-      check_for_proxy(tx)
+      check_for_stake_proxy(tx, account)
     }
   }
 
-  publish(
-    _stake_action: Data<StakeActions>,
-    _cert: Certificate,
-    tx: Transaction,
-  ) {
-    check_for_proxy(tx)
+  publish(_stake_action: Data, cert: Certificate, tx: Transaction) {
+    expect Pair(index, [cred, ..]) = builtin.un_constr_data(cert)
+
+    // Seven is my lucky number 
+    // Actually the first seven certificates have the certificate credential as the first field
+    //    RegisterCredential {
+    //   credential: Credential,
+    //   /// > [!NOTE]
+    //   /// > The `deposit` ought to be an `Option<Lovelace>`, but due to unfortunate
+    //   /// > circumstances it will always be instantiated to `None` even when set in
+    //   /// > the host transaction. This is what the `Never` type captures here.
+    //   deposit: Never,
+    // }
+    // /// Un-Register a stake credential with an optional refund amount
+    // /// The deposit is always present when using the new de-registration certificate
+    // /// format available since the Conway era.
+    // UnregisterCredential {
+    //   credential: Credential,
+    //   /// > [!NOTE]
+    //   /// > The `refund` ought to be an `Option<Lovelace>`, but due to unfortunate
+    //   /// > circumstances it will always be instantiated to `None` even when set in
+    //   /// > the host transaction. This is what the `Never` type captures here.
+    //   refund: Never,
+    // }
+    // /// Delegate stake to a [Delegate](#Delegate).
+    // DelegateCredential { credential: Credential, delegate: Delegate }
+    // /// Register and delegate staking credential to a Delegatee in one certificate.
+    // RegisterAndDelegateCredential {
+    //   credential: Credential,
+    //   delegate: Delegate,
+    //   deposit: Lovelace,
+    // }
+    // /// Register a delegate representative (a.k.a DRep). The deposit is explicit and
+    // /// is refunded when the delegate steps down (unregister).
+    // RegisterDelegateRepresentative {
+    //   delegate_representative: Credential,
+    //   deposit: Lovelace,
+    // }
+    // /// Update a delegate representative (a.k.a DRep). The certificate also contains
+    // /// metadata which aren't visible on-chain.
+    // UpdateDelegateRepresentative { delegate_representative: Credential }
+    // /// UnRegister a delegate representative, and refund back its past deposit.
+    // UnregisterDelegateRepresentative {
+    //   delegate_representative: Credential,
+    //   refund: Lovelace,
+    // }
+    check_for_stake_proxy(tx, cred) && index < 7
   }
 
   /// Update a delegate representative (a.k.a DRep). The certificate also contains
   /// metadata which aren't visible on-chain.
   /// UnRegister a delegate representative, and refund back its past deposit.
-  vote(_stake_action: Data<StakeActions>, _voter: Voter, tx: Transaction) {
-    check_for_proxy(tx)
+  vote(_stake_action: Data, voter: Voter, tx: Transaction) {
+    expect Pair(_, [cred, ..]) = builtin.un_constr_data(voter)
+
+    check_for_stake_proxy(tx, cred)
   }
 
   else(_) {
     False
   }
+}
+
+fn check_for_proxy(tx: Transaction) -> Bool {
+  let proxy_cred = Script(config.proxy_hash)
+
+  has_key(tx.withdrawals, proxy_cred)
 }
 
 validator bullet {

@@ -6,7 +6,7 @@ use cardano/transaction.{Input}
 use config
 use types.{Control, Vk}
 use utils.{
-  check_tx_observed, check_valid_vk_sigs, dataify, filter_hot_inputs,
+  check_all_tx_observed, check_all_valid_vk_sigs, dataify, filter_user_inputs,
   inputs_inline_datum, must_find_item,
 }
 
@@ -29,7 +29,7 @@ pub type Transaction {
   treasury_donation: Data,
 }
 
-validator hot_cred {
+validator vault_spend {
   withdraw(
     signatures: (ScriptHash, List<Signature>),
     _account: Credential,
@@ -49,7 +49,7 @@ validator hot_cred {
     let expected_address =
       Address(Script(config.bullet_hash), Some(Inline(Script(user_stake))))
 
-    expect Control { quorum, hot_cred, hot_cred_hash, .. } =
+    expect Control { hot_cred, hot_cred_hash, .. } =
       reference_inputs
         |> must_find_item(
             fn(input) {
@@ -60,25 +60,25 @@ validator hot_cred {
           )
         |> inputs_inline_datum()
 
-    expect quorum: Int = quorum
     expect hot_cred_hash: List<Credential> = hot_cred_hash
 
-    let inputs_spent = filter_hot_inputs(inputs, expected_address)
+    let inputs_spent = filter_user_inputs(inputs, expected_address)
 
     if hot_cred == dataify([]) {
-      check_tx_observed(hot_cred_hash, extra_signatories, withdrawals) >= quorum
+      check_all_tx_observed(hot_cred_hash, extra_signatories, withdrawals)
     } else {
       expect hot_cred: List<Vk> = hot_cred
+
       let message =
         (inputs_spent, outputs)
           |> builtin.serialise_data()
           |> blake2b_256()
 
-      check_tx_observed(hot_cred_hash, extra_signatories, withdrawals) + check_valid_vk_sigs(
+      check_all_tx_observed(hot_cred_hash, extra_signatories, withdrawals) && check_all_valid_vk_sigs(
         hot_cred,
         sigs,
         message,
-      ) >= quorum
+      )
     }
   }
 
