@@ -1,12 +1,16 @@
-use aiken/crypto.{Blake2b_256, Hash, Signature, VerificationKey}
+use aiken/crypto.{Blake2b_256, Hash, VerificationKey}
 use cardano/address.{Credential}
 
 pub type MessageHash =
   Hash<Blake2b_256, ByteArray>
 
 pub type StakeActions {
-  Signed(List<Signature>)
   Setup
+  Signed
+}
+
+pub type ProxyAction {
+  Intention
 }
 
 pub type AccountState {

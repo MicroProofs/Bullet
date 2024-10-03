@@ -94,6 +94,56 @@ pub fn check_tx_observed(
   }
 }
 
+/// Returns count of non-empty signatures that are valid
+/// Fails if any non-empty signature is invalid
+pub fn check_all_valid_vk_sigs(
+  vks: List<Vk>,
+  signatures: List<Signature>,
+  message: MessageHash,
+) -> Bool {
+  when vks is {
+    [] -> True
+    [vk, ..rest] -> {
+      expect [sig, ..others] = signatures
+
+      when vk is {
+        // ranked by probable usage
+        Schnorr(vk) ->
+          (
+            vk
+              |> verify_schnorr_signature(message, sig)
+          ) && check_all_valid_vk_sigs(rest, others, message)
+        Secp(vk) ->
+          (
+            vk
+              |> verify_schnorr_signature(message, sig)
+          ) && check_all_valid_vk_sigs(rest, others, message)
+      }
+    }
+  }
+}
+
+pub fn check_all_tx_observed(
+  vkhs: List<Credential>,
+  signatories: List<VerificationKeyHash>,
+  withdrawals: Pairs<Credential, Lovelace>,
+) -> Bool {
+  when vkhs is {
+    [] -> True
+    [vkh, ..rest] ->
+      when vkh is {
+        VerificationKey(vkh) ->
+          signatories
+            |> must_take_until(vkh)
+            |> check_all_tx_observed(rest, _, withdrawals)
+        Script(_) as sc ->
+          withdrawals
+            |> must_take_key_until(sc)
+            |> check_all_tx_observed(rest, signatories, _)
+      }
+  }
+}
+
 pub fn must_take_until(list: List<a>, item: a) -> List<a> {
   expect [first, ..rest] = list
 

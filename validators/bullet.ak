@@ -1,24 +1,29 @@
+use aiken/builtin
 use aiken/collection/dict.{to_pairs}
 use aiken/collection/list.{any}
 use aiken/collection/pairs.{has_key}
-use bullet/validations.{check_control_creds}
+use aiken/crypto.{Signature, blake2b_256}
+use aiken/primitive/bytearray.{concat}
 use cardano/address.{Address, Credential, Inline, Script}
 use cardano/assets.{PolicyId, quantity_of, to_dict}
-use cardano/certificate.{
-  Certificate, DelegateCredential, RegisterAndDelegateCredential,
-  RegisterCredential, RegisterDelegateRepresentative, UnregisterCredential,
-  UnregisterDelegateRepresentative, UpdateDelegateRepresentative,
-}
-use cardano/governance.{
-  ConstitutionalCommitteeMember, DelegateRepresentative, Voter,
-}
+use cardano/certificate.{Certificate}
+use cardano/governance.{Voter}
 use cardano/transaction.{
-  Output, OutputReference, Redeemer, Transaction, Withdraw,
+  InlineDatum, Output, OutputReference, Redeemer, Transaction, Withdraw,
 }
 use config
-use types.{Setup, StakeActions}
-use utils.{must_find_key}
+use types.{Control, Setup, StakeActions, Vk}
+use utils.{check_all_tx_observed, check_all_valid_vk_sigs, must_find_key}
 
+fn check_for_proxy(tx: Transaction) -> Bool {
+  let proxy_cred = Script(config.proxy_hash)
+
+  let withdrawals = tx.withdrawals
+
+  has_key(withdrawals, proxy_cred)
+}
+
+/// Rely on proxy validator for all other validation besides setup
 validator stake_bullet {
   withdraw(
     stake_action: Data<StakeActions>,
@@ -28,65 +33,79 @@ validator stake_bullet {
     let setup: Data = Setup
 
     if stake_action == setup {
-      let Transaction { inputs, outputs, .. } = tx
+      let Transaction { inputs, outputs, withdrawals, extra_signatories, .. } =
+        tx
 
       let one_shot_ref =
-        config.one_shot_tx_hash
-          |> OutputReference(config.one_shot_output_index)
+        config.new_user_tx_hash
+          |> OutputReference(config.new_user_output_index)
+
+      // This should come from a pub key anyway 
+      // so this is fine to one time validate credentials are
+      // valid
+      let one_shot_message =
+        one_shot_ref
+          |> builtin.serialise_data()
+          |> concat(config.name_space, _)
+          |> blake2b_256()
 
       expect Script(own_hash) = account
 
-      // TODO: check hot creds and cold creds and hashes are valid
-      expect [Output { address, value, datum, .. }, ..] = outputs
+      // The reason I store sigs in the next output is to simplify the redeemer
+      // And this is only run once per user so impact is minimal
+      expect [
+        Output { address, value, datum: InlineDatum(datum), .. },
+        Output { datum: InlineDatum(sig_datum), .. },
+        ..
+      ] = outputs
 
       let expected_address =
         Address(Script(config.bullet_hash), Some(Inline(account)))
+
+      expect (hot_sigs, cold_sigs): (List<Signature>, List<Signature>) =
+        sig_datum
+
+      expect Control {
+        quorum,
+        hot_cred,
+        hot_cred_hash,
+        cold_cred,
+        cold_cred_hash,
+      } = datum
+
+      expect cold_cred: List<Vk> = cold_cred
+
+      expect cold_cred_hash: List<Credential> = cold_cred_hash
 
       and {
         any(inputs, fn(input) { input.output_reference == one_shot_ref }),
         // Check for account state is setup correctly
         quantity_of(value, config.bullet_hash, own_hash) == 1,
         address == expected_address,
+        quorum > 0,
+        check_all_valid_vk_sigs(hot_cred, hot_sigs, one_shot_message),
+        check_all_valid_vk_sigs(cold_cred, cold_sigs, one_shot_message),
+        check_all_tx_observed(hot_cred_hash, extra_signatories, withdrawals),
+        check_all_tx_observed(cold_cred_hash, extra_signatories, withdrawals),
       }
     } else {
-      check_control_creds(account, stake_action, tx)
+      check_for_proxy(tx)
     }
   }
 
-  publish(stake_action: Data<StakeActions>, cert: Certificate, tx: Transaction) {
-    when cert is {
-      RegisterCredential { credential, .. } |
-      UnregisterCredential { credential, .. } |
-      DelegateCredential { credential, .. } |
-      RegisterAndDelegateCredential { credential, .. } |
-      RegisterDelegateRepresentative { delegate_representative: credential, .. } |
-      UpdateDelegateRepresentative { delegate_representative: credential } |
-      UnregisterDelegateRepresentative {
-        delegate_representative: credential,
-        ..
-      } -> {
-        let account = credential
-
-        check_control_creds(account, stake_action, tx)
-      }
-
-      _ -> False
-    }
+  publish(
+    _stake_action: Data<StakeActions>,
+    _cert: Certificate,
+    tx: Transaction,
+  ) {
+    check_for_proxy(tx)
   }
 
   /// Update a delegate representative (a.k.a DRep). The certificate also contains
   /// metadata which aren't visible on-chain.
   /// UnRegister a delegate representative, and refund back its past deposit.
-  vote(stake_action: Data<StakeActions>, voter: Voter, tx: Transaction) {
-    when voter is {
-      ConstitutionalCommitteeMember(credential) |
-      DelegateRepresentative(credential) -> {
-        let account = credential
-
-        check_control_creds(account, stake_action, tx)
-      }
-      _ -> False
-    }
+  vote(_stake_action: Data<StakeActions>, _voter: Voter, tx: Transaction) {
+    check_for_proxy(tx)
   }
 
   else(_) {
@@ -96,28 +115,32 @@ validator stake_bullet {
 
 validator bullet {
   spend(_d, _r, _o, tx: Transaction) {
-    let proxy_cred = Script(config.proxy_hash)
-
-    let withdrawals = tx.withdrawals
-
-    has_key(withdrawals, proxy_cred)
+    check_for_proxy(tx)
   }
 
   /// Support single time minting per address
   mint(_r, own_policy: PolicyId, tx: Transaction) {
-    expect [Pair(name, 1)] =
+    expect [Pair(name, quantity)] =
       tx.mint
         |> to_dict
         |> to_pairs
         |> must_find_key(own_policy)
         |> to_pairs
 
-    let script_purp = Withdraw(Script(name))
-    let expected_action: Redeemer = Setup
+    or {
+      quantity == -1,
+      {
+        let script_purp = Withdraw(Script(name))
+        let expected_action: Redeemer = Setup
 
-    let redeemer = tx.redeemers |> must_find_key(script_purp)
+        let redeemer = tx.redeemers |> must_find_key(script_purp)
 
-    redeemer == expected_action
+        and {
+          quantity == 1,
+          redeemer == expected_action,
+        }
+      },
+    }
   }
 
   else(_) {

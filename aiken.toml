@@ -22,6 +22,9 @@ source = "github"
 
 [config.default]
 bullet_hash = "totally_valid"
-one_shot_output_index = 0
+new_user_tx_hash = "new_guy_in_town"
+new_user_output_index = 0
 one_shot_tx_hash = "one_shot_one_kill"
+one_shot_output_index = 0
 proxy_hash = "valid_proxy"
+name_space = "Bullet"
