@@ -1,3 +1,4 @@
+use aiken/builtin
 use aiken/collection/dict.{Dict, to_pairs}
 use aiken/crypto.{
   Signature, VerificationKeyHash, verify_ecdsa_signature,
@@ -33,6 +34,14 @@ pub fn inputs_inline_datum(i: Input) -> Data {
   expect InlineDatum(d) = i.output.datum
 
   d
+}
+
+pub fn at(list: List<a>, index: Int) -> a {
+  if index == 0 {
+    builtin.head_list(list)
+  } else {
+    at(builtin.tail_list(list), index - 1)
+  }
 }
 
 /// Returns count of non-empty signatures that are valid
