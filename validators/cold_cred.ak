@@ -1,13 +1,13 @@
 use aiken/builtin
 use aiken/crypto.{ScriptHash, Signature, VerificationKeyHash, blake2b_256}
 use cardano/address.{Address, Credential, Inline, Script}
-use cardano/assets.{Lovelace, quantity_of}
+use cardano/assets.{Lovelace}
 use cardano/transaction.{Input}
 use config
 use types.{Control, Vk}
 use utils.{
   check_all_tx_observed, check_all_valid_vk_sigs, dataify, filter_user_inputs,
-  inputs_inline_datum, must_find_item,
+  inputs_inline_datum, must_find_item, quantity_of,
 }
 
 pub type Transaction {
@@ -29,7 +29,8 @@ pub type Transaction {
   treasury_donation: Data,
 }
 
-validator vault_spend {
+/// Action to spend from your utxos using all your cold keys
+validator cold_spend {
   withdraw(
     signatures: (ScriptHash, List<Signature>),
     _account: Credential,

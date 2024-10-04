@@ -1,10 +1,11 @@
+use aiken/collection/dict.{Dict, to_pairs}
 use aiken/crypto.{
   Signature, VerificationKeyHash, verify_ecdsa_signature,
   verify_schnorr_signature,
 }
 use aiken/primitive/bytearray.{is_empty}
 use cardano/address.{Address, Credential, Script, VerificationKey}
-use cardano/assets.{Lovelace}
+use cardano/assets.{AssetName, Lovelace, PolicyId, Value, to_dict}
 use cardano/transaction.{InlineDatum, Input, OutputReference}
 use types.{MessageHash, Schnorr, Secp, Vault, Vk}
 
@@ -169,10 +170,10 @@ pub fn dataify(d: Data) -> Data {
 }
 
 pub fn filter_hot_inputs(
-  self: List<Input>,
+  list: List<Input>,
   address: Address,
 ) -> List<OutputReference> {
-  when self is {
+  when list is {
     [] -> []
     [x, ..xs] -> {
       let y = x.output
@@ -195,10 +196,10 @@ pub fn filter_hot_inputs(
 }
 
 pub fn filter_user_inputs(
-  self: List<Input>,
+  list: List<Input>,
   address: Address,
 ) -> List<OutputReference> {
-  when self is {
+  when list is {
     [] -> []
     [x, ..xs] -> {
       let y = x.output
@@ -211,5 +212,37 @@ pub fn filter_user_inputs(
         filter_user_inputs(xs, address)
       }
     }
+  }
+}
+
+pub fn quantity_of(val: Value, policy: PolicyId, asset: AssetName) -> Int {
+  val |> to_dict() |> to_pairs() |> do_quantity_of(policy, asset)
+}
+
+fn do_quantity_of(
+  val: Pairs<ByteArray, Dict<ByteArray, Int>>,
+  policy: PolicyId,
+  asset: AssetName,
+) -> Int {
+  when val is {
+    [] -> 0
+    [Pair(x, y), ..xs] ->
+      if x == policy {
+        do_asset_of(y |> to_pairs(), asset)
+      } else {
+        do_quantity_of(xs, policy, asset)
+      }
+  }
+}
+
+fn do_asset_of(val: Pairs<ByteArray, Int>, asset: AssetName) -> Int {
+  when val is {
+    [] -> 0
+    [Pair(x, y), ..xs] ->
+      if x == asset {
+        y
+      } else {
+        do_asset_of(xs, asset)
+      }
   }
 }

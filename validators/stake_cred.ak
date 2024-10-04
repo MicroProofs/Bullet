@@ -1,13 +1,13 @@
 use aiken/builtin
 use aiken/crypto.{Signature, VerificationKeyHash, blake2b_256}
 use cardano/address.{Credential, Script}
-use cardano/assets.{Lovelace, quantity_of}
+use cardano/assets.{Lovelace}
 use cardano/transaction.{Input}
 use config
 use types.{Control, Vk}
 use utils.{
   check_tx_observed, check_valid_vk_sigs, dataify, inputs_inline_datum,
-  must_find_item,
+  must_find_item, quantity_of,
 }
 
 pub type Transaction {
@@ -29,7 +29,8 @@ pub type Transaction {
   treasury_donation: Data,
 }
 
-validator stake_proxy {
+/// Validates user signed stake actions in the tx
+validator proxy_stake {
   withdraw(
     signatures: (Credential, List<Signature>),
     _account: Credential,

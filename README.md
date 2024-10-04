@@ -1,14 +1,5 @@
 # account-abstraction
-
-Write validators in the `validators` folder, and supporting functions in the `lib` folder using `.ak` as a file extension.
-
-```aiken
-validator my_first_validator {
-  spend(_datum: Option<Data>, _redeemer: Data, _output_reference: Data, _context: Data) {
-    True
-  }
-}
-```
+A series of micro-validators for account abstraction that are called via a proxy contract to have the cheapest cost for a user. 
 
 ## Building
 
@@ -23,8 +14,6 @@ aiken build
 [config.default]
 network_id = 41
 ```
-
-Or, alternatively, write conditional environment modules under `env`.
 
 ## Testing
 
@@ -51,6 +40,8 @@ aiken check -m foo
 ```
 
 ## Documentation
+
+The account abstraction validator set called Bullet uses a series of link validators to reduce script ref size costs as well as using efficient coding practices to have low tx cost for each action. The contract offers many levels of safety customized to each users needs. Below is a diagram of the validators and how they link together
 
 ![image](./ValidatorDependency.png)
 

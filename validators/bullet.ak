@@ -42,6 +42,7 @@ validator true_stake_bullet {
 }
 
 /// Rely on proxy stake validator for all other validation besides setup
+/// Handles user stake key actions including delegation, reward, and voting
 validator stake_bullet {
   withdraw(
     stake_action: Data<StakeActions>,
@@ -114,41 +115,23 @@ validator stake_bullet {
     // Actually the first seven certificates have the certificate credential as the first field
     //    RegisterCredential {
     //   credential: Credential,
-    //   /// > [!NOTE]
-    //   /// > The `deposit` ought to be an `Option<Lovelace>`, but due to unfortunate
-    //   /// > circumstances it will always be instantiated to `None` even when set in
-    //   /// > the host transaction. This is what the `Never` type captures here.
     //   deposit: Never,
     // }
-    // /// Un-Register a stake credential with an optional refund amount
-    // /// The deposit is always present when using the new de-registration certificate
-    // /// format available since the Conway era.
     // UnregisterCredential {
     //   credential: Credential,
-    //   /// > [!NOTE]
-    //   /// > The `refund` ought to be an `Option<Lovelace>`, but due to unfortunate
-    //   /// > circumstances it will always be instantiated to `None` even when set in
-    //   /// > the host transaction. This is what the `Never` type captures here.
     //   refund: Never,
     // }
-    // /// Delegate stake to a [Delegate](#Delegate).
     // DelegateCredential { credential: Credential, delegate: Delegate }
-    // /// Register and delegate staking credential to a Delegatee in one certificate.
     // RegisterAndDelegateCredential {
     //   credential: Credential,
     //   delegate: Delegate,
     //   deposit: Lovelace,
     // }
-    // /// Register a delegate representative (a.k.a DRep). The deposit is explicit and
-    // /// is refunded when the delegate steps down (unregister).
     // RegisterDelegateRepresentative {
     //   delegate_representative: Credential,
     //   deposit: Lovelace,
     // }
-    // /// Update a delegate representative (a.k.a DRep). The certificate also contains
-    // /// metadata which aren't visible on-chain.
     // UpdateDelegateRepresentative { delegate_representative: Credential }
-    // /// UnRegister a delegate representative, and refund back its past deposit.
     // UnregisterDelegateRepresentative {
     //   delegate_representative: Credential,
     //   refund: Lovelace,
@@ -156,9 +139,6 @@ validator stake_bullet {
     check_for_stake_proxy(tx, cred) && index < 7
   }
 
-  /// Update a delegate representative (a.k.a DRep). The certificate also contains
-  /// metadata which aren't visible on-chain.
-  /// UnRegister a delegate representative, and refund back its past deposit.
   vote(_stake_action: Data, voter: Voter, tx: Transaction) {
     expect Pair(_, [cred, ..]) = builtin.un_constr_data(voter)
 
@@ -176,12 +156,13 @@ fn check_for_proxy(tx: Transaction) -> Bool {
   has_key(tx.withdrawals, proxy_cred)
 }
 
+/// Entry point for a user spending their utxos
 validator bullet {
   spend(_d, _r, _o, tx: Transaction) {
     check_for_proxy(tx)
   }
 
-  /// Support single time minting per address
+  /// Support single time minting per user
   mint(_r, own_policy: PolicyId, tx: Transaction) {
     expect [Pair(name, quantity)] =
       tx.mint

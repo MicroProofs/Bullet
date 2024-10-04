@@ -1,11 +1,11 @@
 use aiken/builtin
 use aiken/collection/list.{any}
 use cardano/address.{Credential, Script}
-use cardano/assets.{Lovelace, PolicyId, quantity_of}
+use cardano/assets.{Lovelace, PolicyId}
 use cardano/transaction.{Output, OutputReference, Transaction}
 use config
 use types.{ColdCred, HotCred, Intention, ProxyAction, VaultSpend}
-use utils.{dataify, inputs_inline_datum, must_find_item}
+use utils.{dataify, inputs_inline_datum, must_find_item, quantity_of}
 
 fn must_have_key_data(
   withdrawals: Pairs<Credential, Lovelace>,
@@ -18,7 +18,7 @@ fn must_have_key_data(
 
 /// The bread and butter of Bullet
 /// The ultimate contract. A simple tiny withdraw validator that orchestrates all the music
-validator proxy {
+validator proxy_spend {
   withdraw(
     proxy_action: Data<ProxyAction>,
     account: Credential,
