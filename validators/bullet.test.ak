@@ -6,7 +6,8 @@ use cardano/transaction.{
   Transaction, Withdraw,
 }
 use config
-use types.{AccountState, Setup}
+use types.{AccountState, Setup, Signed}
+use utils.{dataify}
 
 test can_setup_stake() {
   let account = Script("blargh_uuuug")
@@ -37,6 +38,20 @@ test can_setup_stake() {
     Transaction { ..transaction.placeholder, inputs: [input], outputs: outputs }
 
   bullet.stake_bullet.withdraw(Setup, account, tx)
+}
+
+test can_proxy_stake() {
+  let account = Script("blargh_uuuug")
+
+  let tx =
+    Transaction {
+      ..transaction.placeholder,
+      redeemers: [
+        Pair(Withdraw(Script(config.stake_proxy_hash)), dataify((account, []))),
+      ],
+    }
+
+  bullet.stake_bullet.withdraw(Signed, account, tx)
 }
 
 test can_mint_bullet() {

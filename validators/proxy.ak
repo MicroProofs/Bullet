@@ -1,8 +1,7 @@
 use aiken/builtin
-use aiken/collection/list.{any}
 use cardano/address.{Credential, Script}
 use cardano/assets.{Lovelace, PolicyId}
-use cardano/transaction.{Output, OutputReference, Transaction}
+use cardano/transaction.{Input, Output, OutputReference, Transaction}
 use config
 use types.{ColdCred, HotCred, Intention, ProxyAction, VaultSpend}
 use utils.{dataify, inputs_inline_datum, must_find_item, quantity_of}
@@ -18,6 +17,7 @@ fn must_have_key_data(
 
 /// The bread and butter of Bullet
 /// The ultimate contract. A simple tiny withdraw validator that orchestrates all the music
+/// TODO: simply use the else validator to shrink as much as possible
 validator proxy_spend {
   withdraw(
     proxy_action: Data<ProxyAction>,
@@ -66,7 +66,9 @@ validator proxy_spend {
       config.one_shot_tx_hash
         |> OutputReference(config.one_shot_output_index)
 
-    any(inputs, fn(input) { input.output_reference == one_shot_ref })
+    expect [Input { output_reference, .. }, ..] = inputs
+
+    output_reference == one_shot_ref
   }
 
   else(_) {

@@ -1,6 +1,6 @@
 use aiken/builtin
 use aiken/collection/dict.{to_pairs}
-use aiken/collection/list.{any}
+use aiken/collection/list.{any, has}
 use aiken/collection/pairs.{has_key}
 use aiken/crypto.{Signature, blake2b_256}
 use aiken/primitive/bytearray.{concat}
@@ -164,8 +164,10 @@ validator bullet {
 
   /// Support single time minting per user
   mint(_r, own_policy: PolicyId, tx: Transaction) {
+    let Transaction { mint, redeemers, .. } = tx
+
     expect [Pair(name, quantity)] =
-      tx.mint
+      mint
         |> to_dict
         |> to_pairs
         |> must_find_key(own_policy)
@@ -177,11 +179,9 @@ validator bullet {
         let script_purp = Withdraw(Script(name))
         let expected_action: Redeemer = Setup
 
-        let redeemer = tx.redeemers |> must_find_key(script_purp)
-
         and {
           quantity == 1,
-          redeemer == expected_action,
+          has(redeemers, Pair(script_purp, expected_action)),
         }
       },
     }
